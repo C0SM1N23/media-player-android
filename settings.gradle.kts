@@ -1,18 +1,18 @@
 pluginManagement {
     repositories {
-        google {
-            content {
-                includeGroupByRegex("com\\.android.*")
-                includeGroupByRegex("com\\.google.*")
-                includeGroupByRegex("androidx.*")
-            }
-        }
-        mavenCentral()
+        // Plugin downloads (Android Gradle Plugin, Kotlin, Compose Compiler, etc.)
         gradlePluginPortal()
+        google()
+        mavenCentral()
+        jcenter()
     }
 }
+
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    // Don’t allow modules to add their own repos
+
+
+    // All project dependencies (including ExoPlayer) must come from here:
     repositories {
         google()
         mavenCentral()
