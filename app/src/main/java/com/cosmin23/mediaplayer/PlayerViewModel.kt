@@ -2,12 +2,17 @@ package com.cosmin23.mediaplayer
 
 import android.app.Application
 import android.content.ContentUris
+import android.content.Intent
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.MediaStore
+import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.cosmin23.mediaplayer.data.AudioItem
+import com.cosmin23.mediaplayer.data.loadAudioFromMediaStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,60 +22,85 @@ import kotlinx.coroutines.launch
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
     private val manager = PlayerManager(application)
 
-    // listă audio
     private val _audioList = MutableStateFlow<List<AudioItem>>(emptyList())
     val audioList: StateFlow<List<AudioItem>> = _audioList.asStateFlow()
 
-    // fișierul care se redă
     private val _playingUri = MutableStateFlow<Uri?>(null)
     val playingUri: StateFlow<Uri?> = _playingUri.asStateFlow()
 
-    // poziție curentă și durată
     private val _position = MutableStateFlow(0L)
     val position: StateFlow<Long> = _position.asStateFlow()
 
     private val _duration = MutableStateFlow(0L)
     val duration: StateFlow<Long> = _duration.asStateFlow()
 
+    private var progressJob: Job? = null
+
     init {
-        // încarcă lista de audio în background
+        // încercăm MediaStore la start
+        loadAudio()
+    }
+
+    /** Încarcă audio din MediaStore (implicit) */
+    fun loadAudio() {
         viewModelScope.launch(Dispatchers.IO) {
-            val list = mutableListOf<AudioItem>()
-            val projection = arrayOf(
-                MediaStore.Audio.Media._ID,
-                MediaStore.Audio.Media.TITLE
-            )
-            val cursor = application.contentResolver.query(
-                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                projection, null, null,
-                "${MediaStore.Audio.Media.TITLE} ASC"
-            )
-            cursor?.use {
-                val idIdx = it.getColumnIndexOrThrow(projection[0])
-                val titleIdx = it.getColumnIndexOrThrow(projection[1])
-                while (it.moveToNext()) {
-                    val id = it.getLong(idIdx)
-                    val title = it.getString(titleIdx)
-                    val uri = ContentUris.withAppendedId(
-                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
-                    )
-                    list += AudioItem(id, title, uri)
-                }
-            }
+            val list = loadAudioFromMediaStore(getApplication())
             _audioList.value = list
         }
     }
 
+    /** Folosit când user a ales un folder cu OpenDocumentTree */
+    fun setFolderUriAndLoad(treeUri: Uri) {
+        // persistăm permisiunea ca să nu pierdem accesul (aceasta trebuie chemată din context cu flags)
+        try {
+            val cr = getApplication<Application>().contentResolver
+            val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+            cr.takePersistableUriPermission(treeUri, takeFlags)
+        } catch (t: Throwable) {
+            // nu fatal, doar log (nu aruncăm)
+            t.printStackTrace()
+        }
+
+        // încărcăm fișierele audio din tree
+        viewModelScope.launch(Dispatchers.IO) {
+            val list = loadAudioFromFolder(getApplication(), treeUri)
+            _audioList.value = list
+        }
+    }
+
+    /** Joacă un item din listă (folosește PlayerManager) */
     fun playItem(item: AudioItem) {
         manager.play(item.uri)
         _playingUri.value = item.uri
-        _duration.value = manager.duration()
+        _duration.value = if (item.duration > 0L) item.duration else manager.duration()
+        startProgressUpdater(item.uri)
+    }
 
-        // actualizează poziția periodic
-        viewModelScope.launch {
-            while (_playingUri.value == item.uri) {
+    /** Joacă un URI (folosit pentru OpenDocument single file) */
+    fun playUri(uri: Uri) {
+        // persistăm permisiunea pentru documentul individual (dacă e permis)
+        try {
+            val cr = getApplication<Application>().contentResolver
+            val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+            cr.takePersistableUriPermission(uri, takeFlags)
+        } catch (t: Throwable) {
+            t.printStackTrace()
+        }
+
+        manager.play(uri)
+        _playingUri.value = uri
+
+        val found = _audioList.value.find { it.uri == uri }
+        _duration.value = found?.duration ?: manager.duration()
+        startProgressUpdater(uri)
+    }
+
+    private fun startProgressUpdater(uri: Uri) {
+        progressJob?.cancel()
+        progressJob = viewModelScope.launch {
+            while (_playingUri.value == uri) {
                 _position.value = manager.currentPosition()
-                delay(500)
+                delay(400)
             }
         }
     }
@@ -80,6 +110,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun stop() {
         manager.stop()
         _playingUri.value = null
+        _position.value = 0L
+        progressJob?.cancel()
     }
 
     fun seekTo(ms: Long) {
@@ -90,5 +122,68 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     override fun onCleared() {
         super.onCleared()
         manager.release()
+        progressJob?.cancel()
+    }
+    fun playUriFromExternal(uri: Uri) {
+        _playingUri.value = uri
+    }
+    // în PlayerViewModel
+    private val _favorites = MutableStateFlow<Set<String>>(emptySet())
+    val favorites: StateFlow<Set<String>> = _favorites.asStateFlow()
+
+    fun toggleFavorite(uri: Uri) {
+        val uriStr = uri.toString()
+        _favorites.value = if (_favorites.value.contains(uriStr)) {
+            _favorites.value - uriStr // șterge
+        } else {
+            _favorites.value + uriStr // adaugă
+        }
+    }
+
+
+
+    // ---------- helper: încarcă fișiere audio dintr-un DocumentFile tree ----------
+    private fun loadAudioFromFolder(app: Application, treeUri: Uri): List<AudioItem> {
+        val ctx = app.applicationContext
+        val root = DocumentFile.fromTreeUri(ctx, treeUri) ?: return emptyList()
+        val list = mutableListOf<AudioItem>()
+
+        // listare non-recursivă (poți extinde recursiv dacă vrei)
+        val files = root.listFiles()
+        for (f in files) {
+            try {
+                if (f.isFile) {
+                    val mime = f.type ?: ""
+                    if (mime.startsWith("audio") || f.name?.endsWith(".mp3", ignoreCase = true) == true
+                        || f.name?.endsWith(".m4a", ignoreCase = true) == true
+                        || f.name?.endsWith(".wav", ignoreCase = true) == true
+                    ) {
+                        val fileUri = f.uri
+                        // extragem durata cu MediaMetadataRetriever (dacă se poate)
+                        var duration = 0L
+                        try {
+                            val mmr = MediaMetadataRetriever()
+                            val pfd = ctx.contentResolver.openFileDescriptor(fileUri, "r")
+                            pfd?.use {
+                                mmr.setDataSource(it.fileDescriptor)
+                                val dur = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                                duration = dur?.toLongOrNull() ?: 0L
+                                mmr.release()
+                            }
+                        } catch (t: Throwable) {
+                            duration = 0L
+                        }
+
+                        val title = f.name ?: fileUri.lastPathSegment ?: "Unknown"
+                        // generăm un id stabil-ish din uri
+                        val id = fileUri.toString().hashCode().toLong()
+                        list += AudioItem(id = id, uri = fileUri, title = title, duration = duration)
+                    }
+                }
+            } catch (t: Throwable) {
+                t.printStackTrace()
+            }
+        }
+        return list.sortedBy { it.title.lowercase() }
     }
 }

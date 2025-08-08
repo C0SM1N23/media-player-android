@@ -15,21 +15,19 @@ import androidx.compose.material.icons.filled.Stop
 
 @Composable
 fun PlayerControls(viewModel: PlayerViewModel) {
-    val positionState = viewModel.position.collectAsState()
-    val durationState = viewModel.duration.collectAsState()
-    val position = positionState.value
-    val duration = durationState.value
-
+    val position = viewModel.position.collectAsState().value
+    val duration = viewModel.duration.collectAsState().value
     val isPlaying = viewModel.playingUri.collectAsState().value != null
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
+            .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Slider + timp curent / total
         Slider(
-            value = position.toFloat().coerceIn(0f, duration.toFloat()),
+            value = position.toFloat().coerceIn(0f, duration.toFloat().coerceAtLeast(1f)),
             onValueChange = { viewModel.seekTo(it.toLong()) },
             valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
             colors = SliderDefaults.colors(
@@ -37,7 +35,14 @@ fun PlayerControls(viewModel: PlayerViewModel) {
                 activeTrackColor = MaterialTheme.colorScheme.primary
             )
         )
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(formatDuration(position), style = MaterialTheme.typography.bodySmall)
+            Text(formatDuration(duration), style = MaterialTheme.typography.bodySmall)
+        }
+
         Spacer(Modifier.height(12.dp))
+
         Row(
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -50,4 +55,12 @@ fun PlayerControls(viewModel: PlayerViewModel) {
             }
         }
     }
+}
+
+private fun formatDuration(ms: Long): String {
+    if (ms <= 0L) return "0:00"
+    val totalSeconds = ms / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return String.format("%d:%02d", minutes, seconds)
 }

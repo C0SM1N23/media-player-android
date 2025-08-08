@@ -2,10 +2,8 @@ package com.cosmin23.mediaplayer
 
 import android.content.Context
 import android.net.Uri
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.common.MediaItem
-
-
+import androidx.media3.exoplayer.ExoPlayer
 
 class PlayerManager(private val context: Context) {
     private var player: ExoPlayer? = null
@@ -18,7 +16,8 @@ class PlayerManager(private val context: Context) {
 
     fun play(uri: Uri) {
         initPlayer()
-        player?.setMediaItem(MediaItem.fromUri(uri))
+        val mediaItem = MediaItem.fromUri(uri)
+        player?.setMediaItem(mediaItem)
         player?.prepare()
         player?.play()
     }
