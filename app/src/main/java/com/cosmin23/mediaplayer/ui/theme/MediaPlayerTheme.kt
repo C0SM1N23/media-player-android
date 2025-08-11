@@ -1,9 +1,7 @@
 package com.cosmin23.mediaplayer.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
@@ -25,21 +23,15 @@ private val DarkColors = darkColorScheme(
     onSurface = Color(0xFFECEFF1)
 )
 
-/**
- * Tema principală a aplicației.
- * Dacă încă primești "Conflicting overloads", înseamnă că există o altă funcție
- * cu același nume/semnătură în proiect — vezi instrucțiunile mai jos.
- */
 @Composable
-fun AppTheme(
+fun MediaPlayerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
     val colors = if (darkTheme) DarkColors else LightColors
-
     MaterialTheme(
         colorScheme = colors,
-        typography = androidx.compose.material3.Typography(), // folosește valorile implicite
+        typography = Typography(),
         content = content
     )
 }

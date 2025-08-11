@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
@@ -30,6 +31,7 @@ import com.cosmin23.mediaplayer.ui.components.TopBarWithMenu
 import com.cosmin23.mediaplayer.ui.theme.MediaPlayerTheme
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import androidx.core.content.PermissionChecker
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -69,7 +71,9 @@ class MainActivity : ComponentActivity() {
         requestNotificationPermissionIfNeeded()
 
         setContent {
-            MediaPlayerTheme {
+            // observăm starea darkMode din ViewModel
+            val isDark by vm.darkMode.collectAsState()
+            MediaPlayerTheme(darkTheme = isDark) {
                 val navController = rememberNavController()
                 val backStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = backStackEntry?.destination?.route ?: "player"
@@ -84,12 +88,8 @@ class MainActivity : ComponentActivity() {
                                 "settings" -> "Settings"
                                 else -> "MediaPlayer"
                             },
-                            onMenuClick = {
-                                // simplu: navigăm la Settings când se apasă butonul de meniu
-                                navController.navigate("settings") {
-                                    launchSingleTop = true
-                                }
-                            }
+                            navController = navController,
+                            viewModel = vm
                         )
                     }
                 ) { innerPadding: PaddingValues ->
@@ -98,14 +98,13 @@ class MainActivity : ComponentActivity() {
                         startDestination = "player",
                         modifier = Modifier.padding(innerPadding)
                     ) {
-                        // folosește PlayerScreen ca ecran principal (lista + controls pot fi integrate acolo)
                         composable("player") {
                             PlayerScreen(viewModel = vm)
                         }
 
-                        // equalizer: momentan îi trimitem 0; poți expune audioSessionId din VM
+                        // === Equalizer: transmitem ViewModel (EqualizerScreen citește audioSessionId din vm) ===
                         composable("equalizer") {
-                            EqualizerScreen(audioSessionId = 0)
+                            EqualizerScreen(viewModel = vm)
                         }
 
                         composable("favorites") {
@@ -114,7 +113,7 @@ class MainActivity : ComponentActivity() {
 
                         composable("settings") {
                             SettingsScreen(
-                                navController = null,
+                                navController = navController,
                                 onBack = { navController.popBackStack() },
                                 onMusicListClicked = { navController.navigate("player") },
                                 onEqualizerClicked = { navController.navigate("equalizer") },
@@ -122,11 +121,12 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }
+
                 }
             }
         }
 
-        // Observăm playingUri pentru a porni/stopa PlayerService
+        // Observăm playingUri pentru a porni/stopa PlayerService (la fel ca înainte)
         lifecycleScope.launch {
             vm.playingUri.collectLatest { uri ->
                 if (uri != null) {
@@ -160,9 +160,9 @@ class MainActivity : ComponentActivity() {
 
     private fun handleIncomingIntentIfAny(intent: Intent?) {
         intent?.data?.let { uri ->
-            // ViewModel trebuie să implementeze playUriFromExternal(uri)
             vm.playUriFromExternal(uri)
-            // opțional: poți naviga la player când vine un URI extern
+            // opțional: poți naviga la player când vine un URI extern, dar NavController nu
+            // este accesibil aici direct (ar trebui folosit via event). Păstrăm simplu.
         }
     }
 
@@ -173,7 +173,7 @@ class MainActivity : ComponentActivity() {
             Manifest.permission.READ_EXTERNAL_STORAGE
         }
         val granted = ContextCompat.checkSelfPermission(this, permission) ==
-                android.content.pm.PackageManager.PERMISSION_GRANTED
+                PermissionChecker.PERMISSION_GRANTED
         if (!granted) {
             readPermissionLauncher.launch(permission)
         } else {
@@ -186,7 +186,7 @@ class MainActivity : ComponentActivity() {
             val granted = ContextCompat.checkSelfPermission(
                 this,
                 Manifest.permission.POST_NOTIFICATIONS
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) == PermissionChecker.PERMISSION_GRANTED
             if (!granted) {
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
