@@ -4,15 +4,14 @@ pluginManagement {
         gradlePluginPortal()
         google()
         mavenCentral()
-        jcenter()
     }
+}
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "0.10.0"
 }
 
 dependencyResolutionManagement {
-    // Don’t allow modules to add their own repos
-
-
-    // All project dependencies (including ExoPlayer) must come from here:
+    // All project dependencies (including Media3/ExoPlayer) must come from here:
     repositories {
         google()
         mavenCentral()

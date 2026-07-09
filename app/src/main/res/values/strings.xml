@@ -1,3 +1,24 @@
 <resources>
     <string name="app_name">MediaPlayerApp</string>
+
+    <!-- Navigation -->
+    <string name="nav_songs">Songs</string>
+    <string name="nav_favorites">Favorites</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Content descriptions (accessibility) -->
+    <string name="cd_album_art">Album artwork</string>
+    <string name="cd_play">Play</string>
+    <string name="cd_pause">Pause</string>
+    <string name="cd_next">Next track</string>
+    <string name="cd_previous">Previous track</string>
+    <string name="cd_shuffle">Shuffle</string>
+    <string name="cd_repeat">Repeat</string>
+    <string name="cd_favorite">Add to favorites</string>
+    <string name="cd_unfavorite">Remove from favorites</string>
+    <string name="cd_more">More options</string>
+
+    <!-- Playback notification -->
+    <string name="notification_channel_name">Playback</string>
+    <string name="notification_channel_description">Media playback controls</string>
 </resources>

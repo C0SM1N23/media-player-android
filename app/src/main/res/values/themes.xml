@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.MediaPlayerApp" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Launch/window theme. Compose drives the real theming; this only controls the window
+         background before the first frame, so it uses a DayNight-aware background colour to avoid
+         a light flash when starting in dark mode (see values-night/themes.xml). -->
+    <style name="Theme.MediaPlayerApp" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
 </resources>

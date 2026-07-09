@@ -1,15 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.cosmin23.mediaplayer">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Permisiuni runtime (declarele aici; cererea la runtime se face din cod) -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <!-- Storage / media read permissions. READ_MEDIA_AUDIO is used on Android 13+,
+         READ_EXTERNAL_STORAGE only on API <= 32. -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <!-- Foreground playback service + notifications -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
+        android:name=".MediaPlayerApp"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -17,13 +22,18 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MediaPlayerApp">
 
-        <!-- Foreground service pentru playback.
-             - `foregroundServiceType="mediaPlayback"` e recomandat/cerut când apelezi startForeground().
-             - `android:exported="false"` = service nu e apelabil din alte aplicații (mai sigur). -->
+        <!-- Media3 session service. It owns the ONLY ExoPlayer instance and produces
+             the media notification, lockscreen controls, Bluetooth/headset handling and
+             Android Auto/Assistant discovery. Must be exported with the MediaSessionService
+             intent-filter so external controllers can bind. -->
         <service
-            android:name=".PlayerService"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:name=".playback.MusicService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
 
         <activity
             android:name=".MainActivity"
@@ -31,8 +41,17 @@
             android:label="@string/app_name"
             android:theme="@style/Theme.MediaPlayerApp">
             <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Allow "open audio file with" from other apps -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:mimeType="audio/*" />
             </intent-filter>
         </activity>
 

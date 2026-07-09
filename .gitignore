@@ -27,3 +27,9 @@ Thumbs.db
 captures/
 .externalNativeBuild/
 .cxx/
+
+# Local project notes (not published)
+IMPROVEMENTS.md
+
+# Gradle daemon JVM auto-provisioning (local build environment)
+gradle/gradle-daemon-jvm.properties

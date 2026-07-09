@@ -1,45 +1,41 @@
 package com.cosmin23.mediaplayer.data
 
-import android.content.Context
-import android.provider.MediaStore
 import android.net.Uri
 
+/**
+ * A single playable audio track.
+ *
+ * Backward compatible with the original model (`id`, `uri`, `title`, `duration` are all still
+ * present) but enriched with the metadata a modern player needs: artist, album, artwork,
+ * track/year, folder and file information.
+ */
 data class AudioItem(
     val id: Long,
     val uri: Uri,
     val title: String,
-    val duration: Long
-)
+    val duration: Long,
+    val artist: String = UNKNOWN_ARTIST,
+    val album: String = UNKNOWN_ALBUM,
+    val albumId: Long = 0L,
+    val albumArtUri: Uri? = null,
+    val track: Int = 0,
+    val year: Int = 0,
+    val dateAddedSeconds: Long = 0L,
+    val sizeBytes: Long = 0L,
+    val mimeType: String = "",
+    val relativePath: String = "",
+    val displayName: String = ""
+) {
+    /** First letter used by the alphabetical fast-scroll index. */
+    val sortLetter: String
+        get() = title.trim().firstOrNull()
+            ?.takeIf { it.isLetter() }
+            ?.uppercaseChar()
+            ?.toString()
+            ?: "#"
 
-fun loadAudioFromMediaStore(context: Context): List<AudioItem> {
-    val list = mutableListOf<AudioItem>()
-    val projection = arrayOf(
-        MediaStore.Audio.Media._ID,
-        MediaStore.Audio.Media.TITLE,
-        MediaStore.Audio.Media.DURATION
-    )
-    val selection = "${MediaStore.Audio.Media.IS_MUSIC}=1 OR ${MediaStore.Audio.Media.IS_MUSIC} IS NULL"
-    val sort = "${MediaStore.Audio.Media.TITLE} ASC"
-
-    val query = context.contentResolver.query(
-        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-        projection,
-        selection,
-        null,
-        sort
-    )
-
-    query?.use { cursor ->
-        val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-        val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-        val durCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
-        while (cursor.moveToNext()) {
-            val id = cursor.getLong(idCol)
-            val title = cursor.getString(titleCol) ?: "Unknown"
-            val duration = cursor.getLong(durCol)
-            val contentUri = Uri.withAppendedPath(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id.toString())
-            list += AudioItem(id = id, uri = contentUri, title = title, duration = duration)
-        }
+    companion object {
+        const val UNKNOWN_ARTIST = "Unknown artist"
+        const val UNKNOWN_ALBUM = "Unknown album"
     }
-    return list
 }
